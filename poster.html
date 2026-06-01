@@ -1,0 +1,269 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贪食蛇 · 像素字母版 — 海报</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#0a0a1a;
+    display:flex; justify-content:center; align-items:center;
+    min-height:100vh; font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+  }
+  .poster {
+    width:800px; height:600px;
+    background:linear-gradient(135deg, #0d0d1a 0%, #1a0a2e 40%, #0d1a2e 100%);
+    position:relative; overflow:hidden;
+    border:2px solid #3a3a5c;
+  }
+  /* 背景装饰网格 */
+  .bg-grid {
+    position:absolute; top:0;left:0;width:100%;height:100%;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size:20px 20px;
+  }
+  /* 标题 */
+  .title {
+    position:absolute; top:30px; left:50%; transform:translateX(-50%);
+    font-size:36px; font-weight:bold; color:#ffcc00;
+    text-shadow:0 0 24px rgba(255,204,0,0.5), 0 0 48px rgba(255,204,0,0.2);
+    letter-spacing:6px; white-space:nowrap;
+  }
+  .subtitle {
+    position:absolute; top:80px; left:50%; transform:translateX(-50%);
+    font-size:14px; color:#888; letter-spacing:8px;
+  }
+  /* 左侧: 像素字母展示 */
+  .letters-box {
+    position:absolute; top:130px; left:40px; width:340px;
+  }
+  .letters-box .section-title {
+    font-size:14px; color:#ff8c00; letter-spacing:3px; margin-bottom:12px;
+  }
+  .letter-grid {
+    display:flex; flex-wrap:wrap; gap:8px;
+  }
+  .letter-item {
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .letter-item .label {
+    font-size:11px; color:#666; letter-spacing:1px;
+  }
+  .letter-item canvas {
+    border:1px solid #2a2a4a;
+  }
+  /* 食物展示 */
+  .food-box {
+    position:absolute; top:130px; left:420px; width:340px;
+  }
+  .food-box .section-title {
+    font-size:14px; color:#ff8c00; letter-spacing:3px; margin-bottom:12px;
+  }
+  .food-row {
+    display:flex; gap:24px; align-items:center;
+  }
+  .food-item {
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .food-item .label {
+    font-size:11px; color:#666; letter-spacing:1px;
+  }
+  .food-item canvas {
+    border:1px solid #2a2a4a;
+  }
+  /* 流程 */
+  .flow {
+    position:absolute; bottom:60px; left:40px; right:40px;
+    display:flex; align-items:center; justify-content:center; gap:0;
+  }
+  .flow-step {
+    background:rgba(255,255,255,0.04);
+    border:1px solid #2a2a4a; border-radius:6px;
+    padding:12px 14px; text-align:center; min-width:100px;
+  }
+  .flow-step .icon {
+    font-size:16px; margin-bottom:4px;
+  }
+  .flow-step .desc {
+    font-size:11px; color:#aaa; line-height:1.5;
+  }
+  .flow-arrow {
+    color:#555; font-size:18px; padding:0 2px;
+  }
+  .flow-step.highlight {
+    border-color:#ff6b9d;
+    background:rgba(255,107,157,0.08);
+  }
+  .flow-step.highlight .desc { color:#ff9ecb; }
+  /* 底部台词 */
+  .quotes {
+    position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+    font-size:11px; color:#555; letter-spacing:2px;
+  }
+  /* 爱心装饰 */
+  .deco-heart {
+    position:absolute; color:#ff6b9d22; font-size:80px;
+    top:340px; left:60px;
+  }
+</style>
+</head>
+<body>
+<div class="poster">
+  <div class="bg-grid"></div>
+
+  <div class="title">贪 食 蛇</div>
+  <div class="subtitle">像 素 字 母 版</div>
+
+  <!-- 左侧：像素字母 -->
+  <div class="letters-box">
+    <div class="section-title">蛇身字母 · 汉字拼音首字母像素画</div>
+    <div class="letter-grid" id="letterGrid"></div>
+  </div>
+
+  <!-- 右侧：食物 -->
+  <div class="food-box">
+    <div class="section-title">食物</div>
+    <div class="food-row">
+      <div class="food-item">
+        <div class="label">苹果 2×2 格</div>
+        <canvas id="appleCanvas" width="48" height="48"></canvas>
+      </div>
+      <div class="food-item">
+        <div class="label">爱心 5×5 格</div>
+        <canvas id="heartCanvas" width="108" height="108"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 游戏流程 -->
+  <div class="flow">
+    <div class="flow-step">
+      <div class="icon">🍎</div>
+      <div class="desc">吃苹果<br>长到8节</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🔄</div>
+      <div class="desc">吃饱苹果啦~<br>平平安安</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🍎</div>
+      <div class="desc">再吃苹果<br>长到8节</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">💕</div>
+      <div class="desc">好想你好爱你~<br>老婆</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight">
+      <div class="icon">❤️</div>
+      <div class="desc">爱心出现<br>蛇头触碰</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight">
+      <div class="icon">✨</div>
+      <div class="desc">我们一起~<br>三生三世啦</div>
+    </div>
+  </div>
+
+  <div class="quotes">方向键 / WASD / 触屏 &nbsp;|&nbsp; 空格键 控制</div>
+</div>
+
+<script>
+// 像素字母 5×5
+const LETTERS = {
+  S: [[0,1,1,1,1],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
+  Y: [[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+  T: [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+  X: [[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1]],
+  D: [[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0]],
+  K: [[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0]],
+  A: [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+};
+const LABELS = {S:'舒(shu)',Y:'仪(yi)',T:'天(tian)',X:'下(xia)',D:'第(di)',K:'可(ke)',A:'爱(ai)'};
+const CLR_HEAD='#2ecc71', CLR_BODY='#27ae60';
+
+// 苹果10×10
+const APPLE_BODY = [
+  [0,0,0,0,0, 0,1,0,0,0],[0,0,0,1,1, 1,1,1,0,0],[0,0,1,1,1, 1,1,1,1,0],
+  [0,1,1,1,1, 1,1,1,1,1],[1,1,1,1,1, 1,1,1,1,1],[1,1,1,1,1, 1,1,1,1,1],
+  [1,1,1,1,1, 1,1,1,1,1],[0,1,1,1,1, 1,1,1,1,0],[0,0,1,1,1, 1,1,1,0,0],
+  [0,0,0,1,1, 1,1,0,0,0],
+];
+const APPLE_LEAF = [
+  [0,0,0,0,0, 0,1,0,0,0],[0,0,1,1,0, 0,0,0,0,0],[0,1,1,1,1, 0,0,0,0,0],
+  [0,0,1,1,0, 0,0,0,0,0],[0,0,0,0,0, 0,0,0,0,0],[0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],[0,0,0,0,0, 0,0,0,0,0],[0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],
+];
+
+// 爱心 25×25
+function heart25(){
+  const cx=12,cy=16,sc=8;
+  const s=Array.from({length:25},()=>Array(25).fill(0));
+  for(let sy=0;sy<25;sy++)for(let sx=0;sx<25;sx++){
+    const x=(sx-cx)/sc,y=(cy-sy)/sc;
+    if((x*x+y*y-1)**3-x*x*y*y*y<=0)s[sy][sx]=1;
+  }
+  return s;
+}
+const HEART = heart25();
+
+// 画5×5字母
+function drawLetter(canvasId, shape, color){
+  const c=document.getElementById(canvasId);
+  if(!c)return;
+  const ctx=c.getContext('2d');
+  const SZ=6;
+  c.width=SZ*5;c.height=SZ*5;
+  for(let r=0;r<5;r++)for(let cc=0;cc<5;cc++)
+    if(shape[r][cc]){ctx.fillStyle=color;ctx.fillRect(cc*SZ,r*SZ,SZ,SZ);}
+}
+
+// 画苹果
+function drawApplePoster(){
+  const c=document.getElementById('appleCanvas');
+  if(!c)return;
+  const ctx=c.getContext('2d');
+  const SZ=4;
+  for(let r=0;r<10;r++)for(let cc=0;cc<10;cc++){
+    if(APPLE_BODY[r][cc]){ctx.fillStyle='#e74c3c';ctx.fillRect(cc*SZ+4,r*SZ+4,SZ,SZ);}
+    if(APPLE_LEAF[r][cc]){ctx.fillStyle='#2ecc71';ctx.fillRect(cc*SZ+4,r*SZ+4,SZ,SZ);}
+  }
+}
+
+// 画爱心
+function drawHeartPoster(){
+  const c=document.getElementById('heartCanvas');
+  if(!c)return;
+  const ctx=c.getContext('2d');
+  const SZ=4;
+  for(let r=0;r<25;r++)for(let cc=0;cc<25;cc++)
+    if(HEART[r][cc]){ctx.fillStyle='#ff6b9d';ctx.fillRect(cc*SZ+4,r*SZ+4,SZ,SZ);}
+}
+
+// 生成字母格子
+const grid=document.getElementById('letterGrid');
+const order=['S','Y','T','X','D','K','A'];
+order.forEach((l,i)=>{
+  const div=document.createElement('div');
+  div.className='letter-item';
+  const c=document.createElement('canvas');
+  const id='letter_'+l;
+  c.id=id; c.width=30; c.height=30;
+  const lb=document.createElement('div');
+  lb.className='label'; lb.textContent=l+' '+LABELS[l];
+  div.appendChild(c); div.appendChild(lb);
+  grid.appendChild(div);
+  setTimeout(()=>drawLetter(id, LETTERS[l], l==='S'?CLR_HEAD:CLR_BODY),10);
+});
+
+setTimeout(()=>{drawApplePoster();drawHeartPoster();},10);
+</script>
+</body>
+</html>

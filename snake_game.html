@@ -1,0 +1,407 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贪食蛇 - 像素字母版</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body {
+    width:100%; height:100%;
+    background:#1a1a2e;
+    display:flex; justify-content:center; align-items:center;
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+    overflow:hidden; user-select:none;
+  }
+  .game-container { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .round-indicator {
+    color:#ff8c00; font-size:18px; font-weight:bold;
+    letter-spacing:3px; min-height:26px;
+    text-shadow:0 0 8px rgba(255,140,0,0.4);
+  }
+  .game-wrapper { position:relative; width:400px; height:400px; }
+  canvas { display:block; outline:none; border:2px solid #3a3a5c; background:#0d0d1a; border-radius:2px; }
+  .overlay {
+    position:absolute; top:0; left:0; width:400px; height:400px;
+    background:rgba(0,0,0,0.78);
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    pointer-events:none; opacity:0; transition:opacity 0.35s;
+  }
+  .overlay.show { opacity:1; }
+  .overlay .msg {
+    color:#fff; font-size:22px; font-weight:bold;
+    text-align:center; text-shadow:0 0 14px rgba(255,255,255,0.5);
+    letter-spacing:2px; line-height:1.7; padding:0 28px; white-space:pre-line;
+  }
+  .overlay .sub {
+    color:#aaa; font-size:13px; margin-top:16px;
+    letter-spacing:1px; white-space:pre-line; text-align:center;
+  }
+  .overlay .msg.hearts { color:#ff6b9d; text-shadow:0 0 18px rgba(255,107,157,0.7); }
+  .overlay .msg.victory { color:#ff9ecb; text-shadow:0 0 22px rgba(255,158,203,0.8); font-size:24px; }
+  .overlay .msg.start-title { font-size:30px; color:#ffcc00; text-shadow:0 0 20px rgba(255,204,0,0.6); }
+  .info {
+    color:#666; font-size:12px; letter-spacing:1px;
+  }
+</style>
+</head>
+<body>
+<div class="game-container">
+  <div class="round-indicator" id="roundInd"></div>
+  <div class="game-wrapper">
+    <canvas id="game" width="400" height="400" tabindex="0"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="msg" id="msg"></div>
+      <div class="sub" id="subMsg"></div>
+    </div>
+  </div>
+  <div class="info">方向键/WASD 移动 &nbsp;|&nbsp; 空格 暂停/开始 &nbsp;|&nbsp; 长度 <span id="lenInfo">2</span></div>
+</div>
+
+<script>
+"use strict";
+
+// ==================== 常量 ====================
+const GRID=20, CELL=20, SUB=4, SPEED=120;
+
+// 像素字母 5×5
+const LETTERS = {
+  S: [[0,1,1,1,1],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[1,1,1,1,0]],
+  Y: [[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+  T: [[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+  X: [[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1]],
+  D: [[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0]],
+  K: [[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0]],
+  A: [[0,1,1,1,0],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1]],
+};
+
+// ---- 10×10 苹果 (2×2格子拼成, 带绿叶和苹果蒂) ----
+// 苹果身体(红色)
+const APPLE_BODY = [
+  [0,0,0,0,0, 0,1,0,0,0],
+  [0,0,0,1,1, 1,1,1,0,0],
+  [0,0,1,1,1, 1,1,1,1,0],
+  [0,1,1,1,1, 1,1,1,1,1],
+  [1,1,1,1,1, 1,1,1,1,1],
+  [1,1,1,1,1, 1,1,1,1,1],
+  [1,1,1,1,1, 1,1,1,1,1],
+  [0,1,1,1,1, 1,1,1,1,0],
+  [0,0,1,1,1, 1,1,1,0,0],
+  [0,0,0,1,1, 1,1,0,0,0],
+];
+// 苹果蒂+绿叶(绿色)
+const APPLE_LEAF = [
+  [0,0,0,0,0, 0,1,0,0,0],  // stem at (6,0)
+  [0,0,1,1,0, 0,0,0,0,0],  // leaf top at (2-3,1)
+  [0,1,1,1,1, 0,0,0,0,0],  // leaf at (1-4,2)
+  [0,0,1,1,0, 0,0,0,0,0],  // leaf bottom at (2-3,3)
+  [0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],
+  [0,0,0,0,0, 0,0,0,0,0],
+];
+
+// ---- 25×25 爱心 (5×5格子拼成, 公式生成) ----
+function computeHeart25() {
+  const cx=12, cy=16, scale=8;
+  const shape = Array.from({length:25}, ()=>Array(25).fill(0));
+  for (let sy=0; sy<25; sy++) {
+    for (let sx=0; sx<25; sx++) {
+      const x = (sx - cx) / scale;
+      const y = (cy - sy) / scale;
+      const v = (x*x + y*y - 1)**3 - x*x * y*y*y;
+      if (v <= 0) shape[sy][sx] = 1;
+    }
+  }
+  return shape;
+}
+const HEART_25 = computeHeart25();
+
+// 爱心在画布位置
+const HEART_LEFT=8, HEART_TOP=5;
+
+const GROWTH = ['T','X','D','Y','K','A'];
+const CLR_HEAD='#2ecc71', CLR_BODY='#27ae60';
+const CLR_APPLE='#e74c3c', CLR_LEAF='#2ecc71';
+const CLR_HEART='#ff6b9d';
+
+// ==================== DOM ====================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const overlayEl = document.getElementById('overlay');
+const msgEl = document.getElementById('msg');
+const subEl = document.getElementById('subMsg');
+const lenEl = document.getElementById('lenInfo');
+const roundEl = document.getElementById('roundInd');
+
+canvas.focus();
+canvas.addEventListener('click', ()=>canvas.focus());
+
+// ==================== 状态 ====================
+let snake=[], dir, nextDir, apple, phase, growthIdx, heartActive=false;
+let gameState; // 'start'|'playing'|'paused'|'message'|'dead'|'victory'
+let lastTime=0, accTime=0, rafId=null;
+
+function updateRoundInd() {
+  if (gameState==='start') { roundEl.textContent=''; return; }
+  const n = phase + 1;
+  roundEl.textContent = '轮回 ' + n;
+}
+
+function init(keepPhase) {
+  if (!keepPhase){ phase=0; heartActive=false; }
+  growthIdx=0;
+  snake=[
+    {x:6,y:10,letter:'S'},
+    {x:5,y:10,letter:'Y'},
+  ];
+  dir={dx:1,dy:0}; nextDir={dx:1,dy:0};
+  apple=null;
+  gameState='playing';
+  lastTime=0; accTime=0;
+  if(phase<2 || (phase===2 && !heartActive)) spawnApple();
+  lenEl.textContent=snake.length;
+  hideOverlay();
+  updateRoundInd();
+  canvas.focus();
+  render();
+}
+
+function isSnakeCell(x,y){ return snake.some(s=>s.x===x&&s.y===y); }
+
+function isHeartCell(x,y){
+  if (phase<2) return false;
+  const lx=x-HEART_LEFT, ly=y-HEART_TOP;
+  if (lx<0||lx>=5||ly<0||ly>=5) return false;
+  // 检查25×25爱心在该格内的5×5子像素是否有任一个填充
+  for (let sr=0; sr<5; sr++)
+    for (let sc=0; sc<5; sc++)
+      if (HEART_25[ly*5+sr][lx*5+sc]) return true;
+  return false;
+}
+
+function isAppleCell(x,y){
+  if (!apple) return false;
+  return (x===apple.x||x===apple.x+1) && (y===apple.y||y===apple.y+1);
+}
+
+function getOccupiedCells(){
+  const occ=new Set();
+  snake.forEach(s=>occ.add(s.x+','+s.y));
+  if (phase<2&&apple) for(let dx=0;dx<2;dx++) for(let dy=0;dy<2;dy++) occ.add((apple.x+dx)+','+(apple.y+dy));
+  return occ;
+}
+
+function spawnApple(){
+  const occ=getOccupiedCells();
+  const free=[];
+  for(let x=0;x<GRID-1;x++) for(let y=0;y<GRID-1;y++){
+    let ok=true;
+    for(let dx=0;dx<2;dx++) for(let dy=0;dy<2;dy++) if(occ.has((x+dx)+','+(y+dy))){ok=false;break;}
+    if(ok) free.push({x,y});
+  }
+  apple=free.length?free[Math.floor(Math.random()*free.length)]:null;
+}
+
+// ==================== 渲染 ====================
+function drawSubShape(gx,gy,shape5x5,color){
+  const ox=gx*CELL, oy=gy*CELL;
+  for(let r=0;r<5;r++) for(let c=0;c<5;c++)
+    if(shape5x5[r][c]){ctx.fillStyle=color;ctx.fillRect(ox+c*SUB,oy+r*SUB,SUB,SUB);}
+}
+
+// 画10×10苹果(2×2格子拼成, 带绿叶)
+function drawAppleBig(){
+  if(!apple) return;
+  for(let sr=0; sr<10; sr++){
+    for(let sc=0; sc<10; sc++){
+      const dx=Math.floor(sc/5), dy=Math.floor(sr/5);
+      const lc=sc%5, lr=sr%5;
+      const px=(apple.x+dx)*CELL+lc*SUB;
+      const py=(apple.y+dy)*CELL+lr*SUB;
+      if(APPLE_BODY[sr][sc]){ctx.fillStyle=CLR_APPLE;ctx.fillRect(px,py,SUB,SUB);}
+      if(APPLE_LEAF[sr][sc]){ctx.fillStyle=CLR_LEAF;ctx.fillRect(px,py,SUB,SUB);}
+    }
+  }
+}
+
+// 画25×25爱心(5×5格子拼成)
+function drawHeartBig(){
+  if(phase<2 || !heartActive) return;
+  for(let sr=0; sr<25; sr++){
+    for(let sc=0; sc<25; sc++){
+      if(!HEART_25[sr][sc]) continue;
+      const dx=Math.floor(sc/5), dy=Math.floor(sr/5);
+      const lc=sc%5, lr=sr%5;
+      const px=(HEART_LEFT+dx)*CELL+lc*SUB;
+      const py=(HEART_TOP+dy)*CELL+lr*SUB;
+      ctx.fillStyle=CLR_HEART;
+      ctx.fillRect(px,py,SUB,SUB);
+    }
+  }
+}
+
+function render(){
+  ctx.fillStyle='#0d0d1a'; ctx.fillRect(0,0,400,400);
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=0.5;
+  for(let i=0;i<=GRID;i++){
+    ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,400);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(400,i*CELL);ctx.stroke();
+  }
+  drawAppleBig();
+  drawHeartBig();
+  for(let i=snake.length-1;i>=0;i--){
+    const s=snake[i];
+    drawSubShape(s.x,s.y,LETTERS[s.letter],i===0?CLR_HEAD:CLR_BODY);
+  }
+}
+
+// ==================== 覆盖层 ====================
+function showOverlay(msg,cls,sub,ms,cb){
+  msgEl.textContent=msg;
+  msgEl.className='msg'+(cls?' '+cls:'');
+  subEl.textContent=sub||'';
+  overlayEl.classList.add('show');
+  if(ms>0) setTimeout(()=>{hideOverlay();if(cb)cb();},ms);
+}
+
+function hideOverlay(){ overlayEl.classList.remove('show'); }
+
+// ==================== 开场 / 暂停 / 结束画面 ====================
+function showStartScreen(){
+  gameState='start';
+  phase=0;
+  updateRoundInd();
+  render();
+  showOverlay('少年请加油！','start-title','按 空格键 开始',0);
+}
+
+function showPauseScreen(){
+  gameState='paused';
+  showOverlay('暂停','','按 空格键 继续',0);
+}
+
+function resumeFromPause(){
+  hideOverlay();
+  gameState='playing';
+  lastTime=0; accTime=0;
+  canvas.focus();
+}
+
+function die(){
+  gameState='dead';
+  showOverlay('再接再厉噢','','按 空格键 返回',0);
+}
+
+function victory(){
+  gameState='victory';
+  render();
+  showOverlay('我们一起~\n三生三世啦','victory','按 空格键 返回',0);
+}
+
+// ==================== 核心逻辑 ====================
+function tick(){
+  if(gameState!=='playing') return;
+  dir={dx:nextDir.dx,dy:nextDir.dy};
+  const head=snake[0];
+  const nx=head.x+dir.dx, ny=head.y+dir.dy;
+
+  if(nx<0||nx>=GRID||ny<0||ny>=GRID){die();return;}
+  for(let i=0;i<snake.length-1;i++) if(snake[i].x===nx&&snake[i].y===ny){die();return;}
+
+  if(phase>=2&&heartActive&&isHeartCell(nx,ny)){
+    for(let i=snake.length-1;i>0;i--){snake[i].x=snake[i-1].x;snake[i].y=snake[i-1].y;}
+    snake[0].x=nx; snake[0].y=ny;
+    victory(); return;
+  }
+
+  const eating=(apple && isAppleCell(nx,ny));
+  const oldTail=snake[snake.length-1];
+  for(let i=snake.length-1;i>0;i--){snake[i].x=snake[i-1].x;snake[i].y=snake[i-1].y;}
+  snake[0].x=nx; snake[0].y=ny;
+
+  if(eating){
+    const letter=GROWTH[growthIdx%GROWTH.length];
+    growthIdx++;
+    snake.push({x:oldTail.x,y:oldTail.y,letter});
+    lenEl.textContent=snake.length;
+    if(snake.length===8){
+      render();
+      if(phase===0){
+        gameState='message';
+        showOverlay('吃饱苹果啦~\n平平安安','','按 空格键 进入下一阶段',0);
+      }else if(phase===1){
+        gameState='message';
+        showOverlay('好想你好爱你~\n老婆','hearts','按 空格键 进入下一阶段',0);
+      }else if(phase===2){
+        heartActive=true; apple=null;
+      }
+      return;
+    }
+    spawnApple();
+  }
+  render();
+}
+
+// ==================== 主循环 ====================
+function loop(ts){
+  rafId=requestAnimationFrame(loop);
+  if(gameState==='playing'){
+    if(lastTime===0) lastTime=ts;
+    accTime+=ts-lastTime; lastTime=ts;
+    while(accTime>=SPEED){accTime-=SPEED;tick();if(gameState!=='playing')break;}
+  }
+  if(gameState==='message'){render();lastTime=ts;accTime=0;}
+  if(gameState==='dead'||gameState==='victory'||gameState==='paused'){lastTime=ts;accTime=0;}
+  if(gameState==='start'){lastTime=ts;accTime=0;}
+}
+
+// ==================== 输入 ====================
+const KEY_MAP={
+  'ArrowUp':   {dx:0,dy:-1,oppDy:1},
+  'ArrowDown': {dx:0,dy:1,oppDy:-1},
+  'ArrowLeft': {dx:-1,dy:0,oppDx:1},
+  'ArrowRight':{dx:1,dy:0,oppDx:-1},
+  'KeyW':{dx:0,dy:-1,oppDy:1},
+  'KeyS':{dx:0,dy:1,oppDy:-1},
+  'KeyA':{dx:-1,dy:0,oppDx:1},
+  'KeyD':{dx:1,dy:0,oppDx:-1},
+};
+
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+
+  // 空格键
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(gameState==='start'){ hideOverlay(); init(false); }
+    else if(gameState==='playing'){ showPauseScreen(); }
+    else if(gameState==='paused'){ resumeFromPause(); }
+    else if(gameState==='dead'||gameState==='victory'){ showStartScreen(); }
+    else if(gameState==='message'){
+      hideOverlay();
+      if(phase===0){ phase=1; init(true); }
+      else if(phase===1){ phase=2; init(true); }
+    }
+    return;
+  }
+
+  if(gameState!=='playing') return;
+
+  const act=KEY_MAP[e.code];
+  if(!act) return;
+  e.preventDefault();
+
+  if(act.oppDy!==undefined&&dir.dy===act.oppDy) return;
+  if(act.oppDx!==undefined&&dir.dx===act.oppDx) return;
+  nextDir={dx:act.dx,dy:act.dy};
+});
+
+// ==================== 启动 ====================
+showStartScreen();
+rafId=requestAnimationFrame(loop);
+</script>
+</body>
+</html>
